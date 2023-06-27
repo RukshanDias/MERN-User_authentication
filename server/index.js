@@ -7,6 +7,7 @@ dotenv.config();
 const mongoose = require("mongoose");
 const User = require("./models/user.model");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
 app.use(cors()); // cors middleware: use casue have differnt server paths in client & server
 app.use(express.json()); // pass anything in req as json
@@ -14,10 +15,11 @@ app.use(express.json()); // pass anything in req as json
 app.post("/api/register", async (req, res) => {
     console.log(req.body);
     try {
+        const newPassword = await bcrypt.hash(req.body.password, 10);
         await User.create({
             name: req.body.name,
             email: req.body.email,
-            password: req.body.password,
+            password: newPassword,
         });
         res.json({ status: "ok" });
     } catch (err) {
@@ -28,8 +30,13 @@ app.post("/api/register", async (req, res) => {
 // Login
 app.post("/api/login", async (req, res) => {
     console.log(req.body);
-    const user = await User.findOne({ email: req.body.email, password: req.body.password }); // bad to store pass like this -> password: req.body.password
-    if (user) {
+    const user = await User.findOne({ email: req.body.email }); // bad to store pass like this -> password: req.body.password
+    if (!user) {
+        return { status: "error", error: "Invalid login: email not registerd" };
+    }
+
+    const isPasswordValid = await bcrypt.compare(req.body.password, user.password);
+    if (isPasswordValid) {
         const token = jwt.sign(
             {
                 name: user.name,
